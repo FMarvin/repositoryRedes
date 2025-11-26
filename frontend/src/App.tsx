@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import './App.css';
 
+// Interfaz para definir cómo se ve una tarea
 interface Task {
   id: number;
   title: string;
@@ -8,115 +9,103 @@ interface Task {
   completed: boolean;
 }
 
+// URL de tu backend en producción
 const API_URL = 'http://redesumes.site:3000/tasks';
 
 function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
-  const [loading, setLoading] = useState(false); // Para evitar doble envío
+  const [loading, setLoading] = useState(false);
 
+  // Cargar las tareas al abrir la página
   useEffect(() => {
     fetchTasks();
   }, []);
 
+  // Función para pedir las tareas al servidor
   const fetchTasks = async () => {
     try {
-      setLoading(true);
+      console.log("Intentando cargar tareas desde:", API_URL);
       const res = await fetch(API_URL);
       
-      if (!res.ok) throw new Error(`Error ${res.status}`);
+      if (!res.ok) {
+        throw new Error(`Error HTTP: ${res.status}`);
+      }
 
       const data = await res.json();
+      console.log("Tareas recibidas del servidor:", data);
       
-      // Asegúrate de que sea un array
       if (Array.isArray(data)) {
         setTasks(data);
       } else {
-        console.warn("Respuesta inesperada:", data);
+        console.error("La respuesta no es una lista:", data);
         setTasks([]);
       }
     } catch (error) {
-      console.error("Error cargando tareas:", error);
-      alert("No se pudieron cargar las tareas. ¿El servidor está encendido?");
-    } finally {
-      setLoading(false);
+      console.error("Error al cargar tareas:", error);
     }
   };
 
-  const addTask = async (e: React.FormEvent) => {
+  // Función para agregar tarea
+  const addTask = async (e: any) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim()) return; 
 
-    const newTaskFromForm = {
-      title: title.trim(),
-      description: desc.trim(),
-      completed: false
-    };
+    setLoading(true); // Bloquear botón mientras carga
 
-    // Optimistic UI: agregamos la tarea inmediatamente (con ID temporal)
-    const tempId = Date.now();
-    const optimisticTask = { ...newTaskFromForm, id: tempId };
-    setTasks(prev => [...prev, optimisticTask]);
-
-    // Limpiamos el formulario
-    setTitle('');
-    setDesc('');
+    const newTask = { title, description: desc };
+    console.log("Enviando nueva tarea:", newTask);
 
     try {
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newTaskFromForm),
+        body: JSON.stringify(newTask),
       });
 
       if (response.ok) {
-        const createdTask = await response.json(); // ¡Importante! El backend debe devolver la tarea creada con su ID real
-        // Reemplazamos la tarea temporal por la real
-        setTasks(prev => prev.map(t => t.id === tempId ? createdTask : t));
+        console.log("Tarea guardada con éxito. Recargando lista...");
+        
+        // 1. Recargar la lista desde el servidor inmediatamente
+        await fetchTasks(); 
+        
+        // 2. Limpiar los campos del formulario
+        setTitle('');
+        setDesc('');
       } else {
-        throw new Error("Error al guardar en el servidor");
+        console.error("Error del servidor al guardar:", response.status);
       }
+
     } catch (error) {
-      console.error("Error al crear tarea:", error);
-      alert("No se pudo guardar la tarea. Se revertirá.");
-      // Quitamos la tarea optimista si falló
-      setTasks(prev => prev.filter(t => t.id !== tempId));
-      // Recargamos por si acaso
-      fetchTasks();
+      console.error("Error de red al crear tarea:", error);
+    } finally {
+      setLoading(false); // Desbloquear botón
     }
   };
 
+  // Función para marcar como completada/pendiente
   const toggleComplete = async (id: number, currentStatus: boolean) => {
-    const updatedTasks = tasks.map(t => 
-      t.id === id ? { ...t, completed: !currentStatus } : t
-    );
-    setTasks(updatedTasks); // Optimistic update
-
     try {
       await fetch(`${API_URL}/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completed: !currentStatus }),
       });
+      fetchTasks(); // Recargar lista para ver el cambio de color
     } catch (error) {
-      console.error("Error al actualizar estado:", error);
-      fetchTasks(); // Revertir si falla
+      console.error("Error al actualizar:", error);
     }
   };
 
+  // Función para eliminar tarea
   const deleteTask = async (id: number) => {
     if (!confirm("¿Seguro que quieres borrar esta tarea?")) return;
-
-    setTasks(prev => prev.filter(t => t.id !== id)); // Optimistic delete
-
     try {
-      const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error("Error al eliminar");
+      await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+      fetchTasks(); // Recargar lista para que desaparezca
     } catch (error) {
       console.error("Error al eliminar:", error);
-      alert("No se pudo eliminar. Recargando...");
-      fetchTasks();
     }
   };
 
@@ -125,6 +114,7 @@ function App() {
       <div className="card">
         <h1 className="title">Hola ingee - Proyecto Final 🚀</h1>
 
+        {/* Formulario de agregar */}
         <form onSubmit={addTask} className="input-group">
           <input
             type="text"
@@ -132,7 +122,7 @@ function App() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="input-text"
-            required
+            disabled={loading}
           />
           <input
             type="text"
@@ -140,23 +130,23 @@ function App() {
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
             className="input-text"
+            disabled={loading}
           />
           <button type="submit" className="btn btn-add" disabled={loading}>
-            ➕ Agregar
+            {loading ? '...' : '➕ Agregar'}
           </button>
         </form>
 
+        {/* Lista de Tareas */}
         <div className="task-list">
-          {loading && tasks.length === 0 ? (
-            <p>Cargando tareas...</p>
-          ) : tasks.length === 0 ? (
+          {tasks.length === 0 ? (
             <p className="no-tasks">No hay tareas pendientes</p>
           ) : (
             tasks.map((task) => (
               <div key={task.id} className={`task-item ${task.completed ? 'completed' : 'pending'}`}>
                 <div className="task-info">
                   <h3>{task.title}</h3>
-                  {task.description && <p>{task.description}</p>}
+                  <p>{task.description}</p>
                   <span className="badge">
                     {task.completed ? 'Completada' : 'Pendiente'}
                   </span>
@@ -165,12 +155,14 @@ function App() {
                   <button
                     onClick={() => toggleComplete(task.id, task.completed)}
                     className="btn btn-check"
+                    title="Marcar como lista"
                   >
                     {task.completed ? '↩️' : '✅'}
                   </button>
                   <button
                     onClick={() => deleteTask(task.id)}
                     className="btn btn-delete"
+                    title="Eliminar"
                   >
                     🗑️
                   </button>
