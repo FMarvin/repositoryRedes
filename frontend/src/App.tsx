@@ -109,7 +109,7 @@ function App() {
   return (
     <div className="app-container">
       <div className="card">
-        <h1 className="title">Proyecto Final</h1>
+        <h1 className="title">Proyecto Final inge</h1>
 
         <form onSubmit={addTask} className="input-group">
           <input
