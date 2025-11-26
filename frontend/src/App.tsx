@@ -75,7 +75,7 @@ function App() {
   return (
     <div className="app-container">
       <div className="card">
-        <h1 className="title">Hola ingee 👋</h1>
+        <h1 className="title">Hola pedrito</h1>
 
         <form onSubmit={addTask} className="input-group">
           <input
