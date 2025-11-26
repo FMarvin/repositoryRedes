@@ -9,8 +9,8 @@ interface Task {
   completed: boolean;
 }
 
-// URL de tu backend
-const API_URL = 'http://localhost:3000/tasks';
+// AHORA (Usa tu dominio real):
+const API_URL = 'http://redesumes.site:3000/tasks';
 
 function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
