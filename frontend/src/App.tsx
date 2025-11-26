@@ -9,7 +9,8 @@ interface Task {
   completed: boolean;
 }
 
-// AHORA (Usa tu dominio real):
+// URL de tu backend en producción
+// NOTA: Esta es la dirección pública de tu servidor
 const API_URL = 'http://redesumes.site:3000/tasks';
 
 function App() {
@@ -17,38 +18,53 @@ function App() {
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
 
+  // Cargar las tareas al abrir la página
   useEffect(() => {
     fetchTasks();
   }, []);
 
+  // Función para pedir las tareas al servidor
   const fetchTasks = async () => {
     try {
+      console.log("Cargando tareas...");
       const res = await fetch(API_URL);
       const data = await res.json();
+      console.log("Tareas recibidas:", data);
       setTasks(data);
     } catch (error) {
       console.error("Error al cargar tareas:", error);
     }
   };
 
-  // AQUÍ ESTABA EL ERROR: Cambiamos 'FormEvent' por 'any' para evitar problemas de TypeScript
+  // Función para agregar tarea (CORREGIDA PARA ACTUALIZAR EN CALIENTE)
   const addTask = async (e: any) => {
     e.preventDefault();
-    if (!title) return;
+    if (!title.trim()) return; 
+
     try {
-      await fetch(API_URL, {
+      const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, description: desc }),
       });
-      setTitle('');
-      setDesc('');
-      fetchTasks();
+
+      if (response.ok) {
+        // 1. ¡TRUCO! Recargar la lista desde el servidor inmediatamente
+        await fetchTasks(); 
+        
+        // 2. Limpiar los campos del formulario
+        setTitle('');
+        setDesc('');
+      } else {
+        console.error("Error del servidor al guardar");
+      }
+
     } catch (error) {
       console.error("Error al crear tarea:", error);
     }
   };
 
+  // Función para marcar como completada/pendiente
   const toggleComplete = async (id: number, currentStatus: boolean) => {
     try {
       await fetch(`${API_URL}/${id}`, {
@@ -56,17 +72,18 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completed: !currentStatus }),
       });
-      fetchTasks();
+      fetchTasks(); // Recargar lista para ver el cambio de color
     } catch (error) {
       console.error("Error al actualizar:", error);
     }
   };
 
+  // Función para eliminar tarea
   const deleteTask = async (id: number) => {
     if (!confirm("¿Seguro que quieres borrar esta tarea?")) return;
     try {
       await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
-      fetchTasks();
+      fetchTasks(); // Recargar lista para que desaparezca
     } catch (error) {
       console.error("Error al eliminar:", error);
     }
@@ -75,8 +92,9 @@ function App() {
   return (
     <div className="app-container">
       <div className="card">
-        <h1 className="title">Hola pedrito</h1>
+        <h1 className="title">Hola ingee - Proyecto Final 🚀</h1>
 
+        {/* Formulario de agregar */}
         <form onSubmit={addTask} className="input-group">
           <input
             type="text"
@@ -97,6 +115,7 @@ function App() {
           </button>
         </form>
 
+        {/* Lista de Tareas */}
         <div className="task-list">
           {tasks.map((task) => (
             <div key={task.id} className={`task-item ${task.completed ? 'completed' : 'pending'}`}>
