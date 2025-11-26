@@ -5,115 +5,112 @@ interface Task {
   id: number;
   title: string;
   description: string;
-  completed: boolean;
+  completed?: boolean;
 }
 
-// URL de tu backend en producción
 const API_URL = 'http://redesumes.site:3000/tasks';
 
 function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
-  const [loading, setLoading] = useState(false);
 
-  // Cargar las tareas al abrir la página
+  // Cargar tareas al inicio
   useEffect(() => {
     fetchTasks();
   }, []);
 
-  // Función para pedir las tareas al servidor
   const fetchTasks = async () => {
     try {
-      console.log("Intentando cargar tareas desde:", API_URL);
       const res = await fetch(API_URL);
-      
       if (!res.ok) {
-        throw new Error(`Error HTTP: ${res.status}`);
+        console.log("Error al cargar tareas del server:", res.status);
+        return;
       }
-
       const data = await res.json();
-      console.log("Tareas recibidas del servidor:", data);
-      
       if (Array.isArray(data)) {
-        setTasks(data);
-      } else {
-        console.error("La respuesta no es una lista:", data);
-        setTasks([]);
+        // Aseguramos que todas tengan completed: false si no viene
+        const fixedTasks = data.map((t: any) => ({
+          ...t,
+          completed: t.completed === true // solo true si es true, si no → false
+        }));
+        setTasks(fixedTasks);
       }
-    } catch (error) {
-      console.error("Error al cargar tareas:", error);
+    } catch (err) {
+      console.log("No se pudo conectar al servidor");
     }
   };
 
-  // Función para agregar tarea
-  const addTask = async (e: any) => {
+  const addTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return; 
+    if (!title.trim()) return;
 
-    setLoading(true); // Bloquear botón mientras carga
+    const nuevaTarea = {
+      title: title.trim(),
+      description: desc.trim()
+    };
 
-    const newTask = { title, description: desc };
-    console.log("Enviando nueva tarea:", newTask);
+    // 1. La mostramos inmediatamente (optimistic)
+    const tareaLocal: Task = {
+      id: Date.now(), // ID temporal
+      title: nuevaTarea.title,
+      description: nuevaTarea.description,
+      completed: false
+    };
 
+    setTasks(prev => [...prev, tareaLocal]);
+    setTitle('');
+    setDesc('');
+
+    // 2. Intentamos guardar en el servidor
     try {
-      const response = await fetch(API_URL, {
+      const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newTask),
+        body: JSON.stringify(nuevaTarea)
       });
 
-      if (response.ok) {
-        console.log("Tarea guardada con éxito. Recargando lista...");
-        
-        // 1. Recargar la lista desde el servidor inmediatamente
-        await fetchTasks(); 
-        
-        // 2. Limpiar los campos del formulario
-        setTitle('');
-        setDesc('');
+      if (res.ok) {
+        // Si el servidor la guardó bien → recargamos todo (trae el ID real)
+        await fetchTasks();
       } else {
-        console.error("Error del servidor al guardar:", response.status);
+        console.log("El servidor rechazó la tarea, pero la dejamos visible");
+        // No hacemos nada → queda la tarea local
       }
-
-    } catch (error) {
-      console.error("Error de red al crear tarea:", error);
-    } finally {
-      setLoading(false); // Desbloquear botón
+    } catch (err) {
+      console.log("Error de red, pero la tarea queda en pantalla");
+      // La tarea queda visible aunque no se guardó
     }
   };
 
-  // Función para marcar como completada/pendiente
-  const toggleComplete = async (id: number, currentStatus: boolean) => {
+  const toggleComplete = async (id: number, current: boolean) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !current } : t));
+
     try {
       await fetch(`${API_URL}/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completed: !currentStatus }),
+        body: JSON.stringify({ completed: !current })
       });
-      fetchTasks(); // Recargar lista para ver el cambio de color
-    } catch (error) {
-      console.error("Error al actualizar:", error);
+    } catch (err) {
+      // Silencioso
     }
   };
 
-  // Función para eliminar tarea
   const deleteTask = async (id: number) => {
-    if (!confirm("¿Seguro que quieres borrar esta tarea?")) return;
+    if (!confirm("¿Eliminar esta tarea?")) return;
+    setTasks(prev => prev.filter(t => t.id !== id));
+
     try {
       await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
-      fetchTasks(); // Recargar lista para que desaparezca
-    } catch (error) {
-      console.error("Error al eliminar:", error);
-    }
+    } catch (err) {}
   };
 
   return (
     <div className="app-container">
       <div className="card">
-        <h1 className="title">Hola ingee - Proyecto Final 🚀</h1>
+        <h1 className="title">Hola ingee - Proyecto Final</h1>
 
-        {/* Formulario de agregar */}
         <form onSubmit={addTask} className="input-group">
           <input
             type="text"
@@ -121,7 +118,7 @@ function App() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="input-text"
-            disabled={loading}
+            required
           />
           <input
             type="text"
@@ -129,41 +126,40 @@ function App() {
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
             className="input-text"
-            disabled={loading}
           />
-          <button type="submit" className="btn btn-add" disabled={loading}>
-            {loading ? '...' : '➕ Agregar'}
+          <button type="submit" className="btn btn-add">
+            + Agregar
           </button>
         </form>
 
-        {/* Lista de Tareas */}
         <div className="task-list">
           {tasks.length === 0 ? (
             <p className="no-tasks">No hay tareas pendientes</p>
           ) : (
             tasks.map((task) => (
-              <div key={task.id} className={`task-item ${task.completed ? 'completed' : 'pending'}`}>
+              <div
+                key={task.id}
+                className={`task-item ${task.completed === true ? 'completed' : 'pending'}`}
+              >
                 <div className="task-info">
                   <h3>{task.title}</h3>
-                  <p>{task.description}</p>
+                  {task.description && <p>{task.description}</p>}
                   <span className="badge">
-                    {task.completed ? 'Completada' : 'Pendiente'}
+                    {task.completed === true ? 'Completada' : 'Pendiente'}
                   </span>
                 </div>
                 <div className="task-actions">
                   <button
-                    onClick={() => toggleComplete(task.id, task.completed)}
+                    onClick={() => toggleComplete(task.id, task.completed === true)}
                     className="btn btn-check"
-                    title="Marcar como lista"
                   >
-                    {task.completed ? '↩️' : '✅'}
+                    {task.completed === true ? '↩️' : '✓'}
                   </button>
                   <button
                     onClick={() => deleteTask(task.id)}
                     className="btn btn-delete"
-                    title="Eliminar"
                   >
-                    🗑️
+                    Trash
                   </button>
                 </div>
               </div>
