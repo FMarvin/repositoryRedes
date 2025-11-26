@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import './App.css';
 
-// Interfaz para definir cómo se ve una tarea
 interface Task {
   id: number;
   title: string;
@@ -9,8 +8,6 @@ interface Task {
   completed: boolean;
 }
 
-// URL de tu backend en producción
-// NOTA: Esta es la dirección pública de tu servidor
 const API_URL = 'http://redesumes.site:3000/tasks';
 
 function App() {
@@ -18,53 +15,63 @@ function App() {
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
 
-  // Cargar las tareas al abrir la página
   useEffect(() => {
     fetchTasks();
   }, []);
 
-  // Función para pedir las tareas al servidor
   const fetchTasks = async () => {
     try {
-      console.log("Cargando tareas...");
+      console.log("Intentando cargar tareas desde:", API_URL);
       const res = await fetch(API_URL);
+      
+      if (!res.ok) {
+        throw new Error(`Error HTTP: ${res.status}`);
+      }
+
       const data = await res.json();
-      console.log("Tareas recibidas:", data);
-      setTasks(data);
+      console.log("Tareas recibidas del servidor:", data);
+      
+      if (Array.isArray(data)) {
+        setTasks(data);
+      } else {
+        console.error("La respuesta no es una lista:", data);
+        setTasks([]);
+      }
     } catch (error) {
       console.error("Error al cargar tareas:", error);
     }
   };
 
-  // Función para agregar tarea (CORREGIDA PARA ACTUALIZAR EN CALIENTE)
   const addTask = async (e: any) => {
     e.preventDefault();
     if (!title.trim()) return; 
+
+    const newTask = { title, description: desc };
+    console.log("Enviando nueva tarea:", newTask);
 
     try {
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description: desc }),
+        body: JSON.stringify(newTask),
       });
 
       if (response.ok) {
-        // 1. ¡TRUCO! Recargar la lista desde el servidor inmediatamente
-        await fetchTasks(); 
-        
-        // 2. Limpiar los campos del formulario
+        console.log("Tarea guardada con éxito. Recargando lista...");
+
         setTitle('');
         setDesc('');
+
+        await fetchTasks(); 
       } else {
-        console.error("Error del servidor al guardar");
+        console.error("Error del servidor al guardar:", response.status);
       }
 
     } catch (error) {
-      console.error("Error al crear tarea:", error);
+      console.error("Error de red al crear tarea:", error);
     }
   };
 
-  // Función para marcar como completada/pendiente
   const toggleComplete = async (id: number, currentStatus: boolean) => {
     try {
       await fetch(`${API_URL}/${id}`, {
@@ -78,7 +85,6 @@ function App() {
     }
   };
 
-  // Función para eliminar tarea
   const deleteTask = async (id: number) => {
     if (!confirm("¿Seguro que quieres borrar esta tarea?")) return;
     try {
@@ -115,36 +121,39 @@ function App() {
           </button>
         </form>
 
-        {/* Lista de Tareas */}
+
         <div className="task-list">
-          {tasks.map((task) => (
-            <div key={task.id} className={`task-item ${task.completed ? 'completed' : 'pending'}`}>
-              <div className="task-info">
-                <h3>{task.title}</h3>
-                <p>{task.description}</p>
-                <span className="badge">
-                  {task.completed ? 'Completada' : 'Pendiente'}
-                </span>
+          {tasks.length === 0 ? (
+            <p className="no-tasks">No hay tareas pendientes</p>
+          ) : (
+            tasks.map((task) => (
+              <div key={task.id} className={`task-item ${task.completed ? 'completed' : 'pending'}`}>
+                <div className="task-info">
+                  <h3>{task.title}</h3>
+                  <p>{task.description}</p>
+                  <span className="badge">
+                    {task.completed ? 'Completada' : 'Pendiente'}
+                  </span>
+                </div>
+                <div className="task-actions">
+                  <button
+                    onClick={() => toggleComplete(task.id, task.completed)}
+                    className="btn btn-check"
+                    title="Marcar como lista"
+                  >
+                    {task.completed ? '↩️' : '✅'}
+                  </button>
+                  <button
+                    onClick={() => deleteTask(task.id)}
+                    className="btn btn-delete"
+                    title="Eliminar"
+                  >
+                    🗑️
+                  </button>
+                </div>
               </div>
-              <div className="task-actions">
-                <button
-                  onClick={() => toggleComplete(task.id, task.completed)}
-                  className="btn btn-check"
-                  title="Marcar como lista"
-                >
-                  {task.completed ? '↩️' : '✅'}
-                </button>
-                <button
-                  onClick={() => deleteTask(task.id)}
-                  className="btn btn-delete"
-                  title="Eliminar"
-                >
-                  🗑️
-                </button>
-              </div>
-            </div>
-          ))}
-          {tasks.length === 0 && <p className="no-tasks">No hay tareas pendientes</p>}
+            ))
+          )}
         </div>
       </div>
     </div>
