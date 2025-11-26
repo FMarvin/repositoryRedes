@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # 1. FRONTEND (React + Nginx)
+  frontend:
+    build: ./frontend
+    container_name: app_frontend
+    ports:
+      - "80:80"  # Podrás ver tu página en http://localhost
+    depends_on:
+      - backend
+
+  # 2. BACKEND (Node.js)
+  backend:
+    build: ./backend
+    container_name: app_backend
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DB_HOST=database_docker
+      - DB_USER=root
+      - DB_PASSWORD=rootpassword
+      - DB_NAME=app_db
+      - DB_PORT=3306
+    depends_on:
+      - database_docker
+
+  # 3. BASE DE DATOS (MySQL)
+  database_docker:
+    image: mysql:8.0
+    container_name: mysql_docker_container
+    restart: always
+    environment:
+      MYSQL_DATABASE: app_db
+      MYSQL_ROOT_PASSWORD: rootpassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/db_init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  mysql_data:
